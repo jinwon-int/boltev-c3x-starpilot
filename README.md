@@ -54,15 +54,21 @@
 
 ```
 boltev-c3x-starpilot/
-├── README.md                  # 이 파일
+├── README.md                      # 이 파일 (개요 + 차량 사양 + 링크)
+├── .gitignore
 ├── config/
-│   └── current.md             # 현재 C3X 설정 스냅샷 (StarPilot 파라미터)
+│   └── current.md                 # 현재 C3X 설정 스냅샷
 ├── updates/
-│   └── YYYY-MM-DD.md          # 업데이트 로그 (날짜별)
+│   └── YYYY-MM-DD.md              # 업데이트 로그 (날짜별)
 ├── tuning/
-│   └── bolt-2017-defaults.md  # Bolt 2017 전용 튜닝 레퍼런스
+│   └── bolt-2017-defaults.md      # Bolt 2017 튜닝 레퍼런스 + 설정 체크리스트
 └── docs/
-    └── playbook.md            # 대교 자율 관리 플레이북
+    ├── playbook.md                # 대교 자율 관리 플레이북
+    ├── ssh-access.md              # SSH 접속 가이드 (키, 연결, 관리)
+    ├── api-reference.md           # API 레퍼런스 (Web, Tailscale, GitHub)
+    ├── troubleshooting.md         # 트러블슈팅 가이드 (6가지 시나리오)
+    ├── update-procedures.md       # 업데이트 절차 (Git + Tarball + 검증)
+    └── developer-tracker.md       # firestar5683 개발 활동 트래커
 ```
 
 ---
