@@ -1,0 +1,17 @@
+# StarPilot tarball artifacts
+*.tar.gz
+
+# Editor
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Local config (don't commit secrets)
+.env
