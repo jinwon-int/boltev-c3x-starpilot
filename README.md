@@ -103,6 +103,14 @@ boltev-c3x-starpilot/
 
 ---
 
+## ✅ CI 범위
+
+- `.github/workflows/baseline-ci.yml`는 PR/push에서 Markdown/상대링크, JSON/YAML/TOML 스냅샷 구문, 보수적 secret pattern scan만 수행합니다.
+- CI는 C3X/차량 SSH, Web UI, StarPilot API 호출, 업데이트, 재부팅을 실행하지 않는 read-only 문서/스냅샷 검증입니다.
+- 실제 차량/디바이스 변경은 기존 플레이북의 수동 승인과 별도 evidence 수집 절차로만 진행합니다.
+
+---
+
 ## 📝 라이선스
 
 이 저장소의 문서/로그는 자유롭게 참조 가능합니다.
