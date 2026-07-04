@@ -1,7 +1,7 @@
 # Current C3X Configuration Snapshot
 
-> **촬영일:** 2026-06-19  
-> **소스:** SSH direct query  
+> **촬영일:** 2026-07-04  
+> **소스:** SSH direct query (릴레이: 공융 → 서서 → 대교 → C3X)  
 > **다음 확인:** 업데이트 후 재촬영
 
 ---
@@ -11,9 +11,10 @@
 | 항목 | 값 |
 |------|-----|
 | Fork | `firestar5683/StarPilot` |
-| Branch | `StarPilot` |
-| Latest Commit | `471e944` |
-| Build Date | 2026-06-13 |
+| Branch | detached HEAD (from `StarPilot`) |
+| Latest Commit | `d931d300` (6/20 `build`, prebuilt) |
+| Build Date | 2026-06-20 |
+| Upstream HEAD | `59c4dda` (2026-06-26) — 미채택 |
 | Upstream Status | Active (daily commits) |
 
 ## Git Remote
