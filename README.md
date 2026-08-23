@@ -5,7 +5,7 @@
 [![Maintained by](https://img.shields.io/badge/maintained%20by-대교%20(Daegyo)-purple)](https://github.com/jinwon-int)
 [![Bolt](https://img.shields.io/badge/Car-Bolt%20EV%202017-orange)](https://wiki.firestar.link/cars/bolt/)
 
-> **관리 주체:** 대교 (Daegyo) — Hermes Agent on Samsung S23 Ultra (Termux)  
+> **관리 주체:** 대교 (Daegyo) — Samsung S23 Ultra (Termux)
 > **담당자:** 진원님 (Seo Jin On, `jinon86`)  
 > **차량:** Chevrolet Bolt EV 2017, non-ACC + Comma Pedal  
 > **디바이스:** Comma 3X (comma-dbba2a27), 호스트명 `tizi-the-pond`
@@ -47,6 +47,13 @@
 | 로컬 WiFi IP | `192.168.55.203` (변동 가능) |
 | Web UI | `http://100.71.169.100:8082` |
 | SSH | `comma@100.71.169.100` (키 인증) |
+
+### 현재 업데이트 상태 (2026-08-24)
+
+- 설치: `d931d300`(2026-06-19 prebuilt), detached HEAD.
+- upstream: `28ec3ccb`(2026-08-23), 설치본보다 764 commits ahead.
+- **적용 보류:** `UpdaterTargetBranch=HEAD` 결함, Pedal firmware 미확인, exact-head Bolt 테스트 증거 부재.
+- 상세: [2026-08-24 사전 감사](updates/2026-08-24-audit.md) · [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6).
 
 ---
 
@@ -90,16 +97,14 @@ boltev-c3x-starpilot/
 
 ## 🤖 자율 관리
 
-대교(Daegyo)는 다음을 자율적으로 수행합니다:
+대교(Daegyo)는 다음 read-only 작업을 자율적으로 수행합니다:
 
 1. **주기적 업데이트 확인** — C3X 웹 API + GitHub 커밋 비교
-2. **SSH 접속** — `~/.ssh/id_ed25519` 키로 comma@Tailscale 접속
-3. **브랜치 전환/업데이트** — git fetch + checkout + pull
-4. **설정 검증** — Essential Settings Checklist 확인
-5. **진원님 알림** — 재부팅 필요 시 Telegram으로 통보
+2. **SSH 상태 점검** — 버전·프로세스·온도·저장공간·updater 오류 확인
+3. **설정 검증** — Essential Settings Checklist와 실기 fingerprint 대조
+4. **진원님 알림** — 변경 후보·위험·재부팅 필요 여부 보고
 
-> ⚠️ `reboot` 명령어는 Hermes hardline blocklist에 포함되어 직접 실행 불가.
-> 재부팅은 진원님이 직접 수행합니다.
+브랜치·Params·파일·firmware 변경과 업데이트 적용·재부팅은 차량 제어 경계이므로 매 작업마다 진원님의 명시 승인을 새로 받습니다.
 
 ---
 
