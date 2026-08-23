@@ -2,6 +2,8 @@
 
 > **관리:** 대교 (Daegyo) on S23 Ultra (Termux)  
 > **대상:** Comma 3X (`tizi-the-pond`), StarPilot (`firestar5683/StarPilot`, `StarPilot` 브랜치)
+>
+> **2026-08-24 BLOCK:** 기기가 detached HEAD이고 `UpdaterTargetBranch=HEAD`라 자동 updater가 실패한다. [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6)의 Pedal firmware·exact SHA·테스트·백업 게이트를 충족하기 전에는 아래 적용 명령을 실행하지 않는다.
 
 ---
 
@@ -21,11 +23,31 @@ ssh comma@100.71.169.100 'cd /data/openpilot && \
 LATEST=$(curl -s https://api.github.com/repos/firestar5683/StarPilot/commits/StarPilot | jq -r .sha[0:7])
 CURRENT=$(ssh comma@100.71.169.100 'cd /data/openpilot && git log -1 --format=%h')
 echo "Latest: $LATEST, Current: $CURRENT"
+
+# 4. updater target/exception 확인 — 읽기 전용
+ssh comma@100.71.169.100 '
+  for k in UpdaterTargetBranch UpdaterFetchAvailable UpdateAvailable LastUpdateException; do
+    f=/data/params/d/$k
+    [ -r "$f" ] && printf "%s=%s\n" "$k" "$(tr -d "\000\r\n" < "$f")"
+  done
+'
 ```
+
+## 필수 승인 게이트
+
+1. 차량이 Parked/Offroad인지 확인한다.
+2. Gen1 Bolt Pedal firmware가 현행 StarPilot과 호환되는지 확인한다.
+3. moving branch가 아니라 **exact candidate SHA**를 선정한다.
+4. Bolt/GM/pedal/longitudinal/safety diff와 focused test 증거를 남긴다.
+5. 현재 HEAD·Params·설정·dirty assets·updater 상태를 백업한다.
+6. target branch 수정·checkout·reboot는 각각 오너 승인 범위 안에서만 수행한다.
+7. offroad 검증 뒤 오너가 저속 첫 주행을 하고 즉시 수동 제동할 준비를 한다.
 
 ---
 
 ## Method 1: Git 표준 업데이트 (인터넷 양호할 때)
+
+> **현재 실행 금지:** 아래 명령은 moving `StarPilot` HEAD를 즉시 적용하고 dirty 파일을 파괴할 수 있다. [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6)에서 exact SHA·백업 절차를 확정할 때까지 역사적 참고로만 둔다.
 
 ```bash
 ssh comma@100.71.169.100 '
@@ -43,8 +65,9 @@ ssh comma@100.71.169.100 'cd /data/openpilot && git log -1 --format="%h %s %ai"'
 
 ## Method 2: Tarball 우회 업데이트 (인터넷 느릴 때)
 
-C3X의 git fetch가 타임아웃될 때 사용하는 방법입니다.
-GitHub API tarball은 일반 git clone보다 훨씬 빠르게 다운로드됩니다.
+C3X의 git fetch가 타임아웃될 때 사용했던 역사적 방법입니다.
+
+> **현재 실행 금지:** 이 절차는 moving branch tarball을 받고 기존 `.git`을 삭제하며, tarball에는 커밋 메타데이터가 없어 마지막 `git log` 검증도 성립하지 않는다. pin·무결성·원자 교체·롤백 절차를 다시 설계하기 전에는 사용하지 않는다.
 
 ### 전체 절차
 
@@ -106,7 +129,7 @@ rm ~/starpilot.tar.gz
 
 ## Method 3: Fork/Branch 전환
 
-다른 포크나 브랜치로 전환할 때 사용합니다.
+다른 포크나 브랜치로 전환할 때 사용합니다. 현재 C3X에서는 target branch 수정이 updater의 즉시 fetch/stage를 유발할 수 있으므로 [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6) 배포 창 전에는 실행하지 않습니다.
 
 ```bash
 # 리모트 변경
@@ -173,9 +196,9 @@ ssh comma@100.71.169.100 '
 
 ## 재부팅 (업데이트 적용)
 
-⚠️ **`reboot` 명령어는 Hermes hardline blocklist에 포함되어 직접 실행 불가합니다.**
+⚠️ **재부팅은 차량 제어 소프트웨어 적용 경계입니다. 매 작업마다 진원님의 명시 승인을 새로 받아야 합니다.**
 
-진원님께 다음 중 하나를 요청:
+승인 후 다음 중 하나를 수행:
 - **C3X 전원 코드 뽑았다 꽂기**
 - **차량 시동 껐다 켜기**
 - **C3X USB-C 전원 어댑터로 재부팅**
