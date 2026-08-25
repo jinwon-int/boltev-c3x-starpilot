@@ -3,120 +3,66 @@
 [![StarPilot](https://img.shields.io/badge/StarPilot-firestar5683-blue)](https://github.com/firestar5683/StarPilot)
 [![C3X](https://img.shields.io/badge/Device-Comma%203X-green)](https://comma.ai/)
 [![Maintained by](https://img.shields.io/badge/maintained%20by-대교%20(Daegyo)-purple)](https://github.com/jinwon-int)
-[![Bolt](https://img.shields.io/badge/Car-Bolt%20EV%202017-orange)](https://wiki.firestar.link/cars/bolt/)
 
-> **관리 주체:** 대교 (Daegyo) — Samsung S23 Ultra (Termux)
-> **담당자:** 진원님 (Seo Jin On, `jinon86`)  
-> **차량:** Chevrolet Bolt EV 2017, non-ACC + Comma Pedal  
-> **디바이스:** Comma 3X (comma-dbba2a27), 호스트명 `tizi-the-pond`
+> **관리 주체:** 대교(Daegyo) / Seo Jin On (`jinon86`)<br>
+> **차량:** Chevrolet Bolt EV 2017 non-ACC + Comma Pedal<br>
+> **기기:** Comma 3X `comma-dbba2a27` / Tailscale `tizi-the-galaxy`
 
----
+## 목적과 경계
 
-## 📋 레포 목적
+이 저장소는 C3X에 직접 설치하는 소스가 아니라 **실기 상태·설정·업데이트 근거·안전 게이트를 관리하는 정본**입니다. 실제 주행 소스는 기기의 `/data/openpilot`에 있는 StarPilot입니다.
 
-이 저장소는 진원님의 **Bolt EV 2017 non-ACC C3X**에 설치된 StarPilot 소프트웨어의
-업데이트 이력, 설정 스냅샷, 튜닝 참조값, 그리고 자율 관리 플레이북을 추적합니다.
+- 소프트웨어 exact SHA와 AGNOS 상태
+- FireStar/차량 설정 snapshot
+- 업데이트·복구·rollback 근거
+- 첫 ignition 및 첫 주행 안전 게이트
+- SSH/Tailscale/Web UI 운영 절차
 
-- ✅ **소프트웨어 업데이트 로그** — 언제, 어떤 브랜치/커밋으로 업데이트했는지
-- ✅ **설정 스냅샷** — StarPilot 튜닝 파라미터 현재값 백업
-- ✅ **튜닝 레퍼런스** — Bolt 2017 전용 lateral/longitudinal 기본값
-- ✅ **트러블슈팅** — 발생했던 문제와 해결책 기록
-- ✅ **플레이북** — 대교가 자율적으로 C3X를 관리할 때 참조하는 절차
+과거 시점의 `updates/` 기록은 당시 증거이므로 현행 endpoint로 일괄 치환하지 않습니다.
 
----
+## Live canonical state — 2026-08-25 KST
 
-## 🚗 차량 사양
+| 항목 | 현행값 |
+|---|---|
+| Tailscale | `tizi-the-galaxy` / `100.90.4.121` |
+| MagicDNS | `tizi-the-galaxy.tail1546e7.ts.net` |
+| Local Wi-Fi | `192.168.55.222` (DHCP, mutable) |
+| SSH | `comma@100.90.4.121:22`, Daegyo `~/.ssh/id_ed25519` |
+| Web UI | `http://100.90.4.121:8082` |
+| StarPilot | `28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede` |
+| Tree | `cd13b2453cb3f46cf0573e440a4af663a09ae74b` |
+| Branch/origin | `bolt-starpilot-28ec3ccb` / immutable local pin |
+| AGNOS | `19.6.2` |
+| 서비스 | `comma`, `ssh.socket`, `tailscaled` active |
+
+복구·설정 상세는 [`config/current.md`](config/current.md)와 [`updates/2026-08-25-recovery.md`](updates/2026-08-25-recovery.md)를 참조합니다.
+
+## 현재 안전 게이트
+
+소프트웨어와 설정 투영은 완료됐지만, 포맷 복구 후 `CarParams`, `CarParamsPersistent`, `FirmwareQueryDone`이 아직 생성되지 않았습니다. 따라서 **첫 ignition에서 Bolt 2017 fingerprint·Pedal·OP longitudinal·delay/PID·Panda/경고를 검증하기 전에는 주행/engage 완료로 판정하지 않습니다.**
+
+## 차량 기준
 
 | 항목 | 값 |
-|------|-----|
-| 모델 | Chevrolet Bolt EV 2017 |
-| ACC | ❌ 없음 (non-ACC) |
-| 페달 | ✅ Comma Pedal (회생제동 + stop&go) |
-| 스티어링 토크 | 4.5Nm (+50%, 2017 전용) |
-| LKAS | Premier + Driver Confidence II |
+|---|---|
+| 차량 | Chevrolet Bolt EV 2017 |
+| ACC | 없음(non-ACC) |
+| Pedal | Comma Pedal, stop-and-go 지원 |
+| 수동 fingerprint | `CHEVROLET_BOLT_CC_2017` |
+| OP longitudinal | 설정상 활성; first ignition 실증 pending |
+| 제동 한계 | 회생제동 중심, 필요 시 즉시 수동 제동 |
 
----
+## 문서 구조
 
-## 📡 C3X 디바이스
+- [`config/current.md`](config/current.md): live snapshot
+- [`tuning/bolt-2017-defaults.md`](tuning/bolt-2017-defaults.md): 현행 승인 profile과 안전 기준
+- [`docs/playbook.md`](docs/playbook.md): 점검·운영 흐름
+- [`docs/ssh-access.md`](docs/ssh-access.md): 접속 정본
+- [`docs/api-reference.md`](docs/api-reference.md): Web/SSH/Tailscale 조회
+- [`docs/update-procedures.md`](docs/update-procedures.md): exact-pin 업데이트 절차
+- [`docs/troubleshooting.md`](docs/troubleshooting.md): 장애 진단
+- `updates/`: append-only 시점별 이력
 
-| 항목 | 값 |
-|------|-----|
-| 기기 | Comma 3X (comma-dbba2a27) |
-| 소프트웨어 | StarPilot (`firestar5683/StarPilot`, `StarPilot` 브랜치) |
-| Tailscale IP | `100.71.169.100` |
-| 로컬 WiFi IP | `192.168.55.203` (변동 가능) |
-| Web UI | `http://100.71.169.100:8082` |
-| SSH | `comma@100.71.169.100` (키 인증) |
+## 변경 정책
 
-### 현재 업데이트 상태 (2026-08-24)
-
-- 설치: `d931d300`(2026-06-19 prebuilt), detached HEAD.
-- upstream: `28ec3ccb`(2026-08-23), 설치본보다 764 commits ahead.
-- **적용 보류:** `UpdaterTargetBranch=HEAD` 결함, Pedal firmware 미확인, exact-head Bolt 테스트 증거 부재.
-- 상세: [2026-08-24 사전 감사](updates/2026-08-24-audit.md) · [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6).
-
----
-
-## 📂 구조
-
-```
-boltev-c3x-starpilot/
-├── README.md                      # 이 파일 (개요 + 차량 사양 + 링크)
-├── .gitignore
-├── config/
-│   └── current.md                 # 현재 C3X 설정 스냅샷
-├── updates/
-│   └── YYYY-MM-DD.md              # 업데이트 로그 (날짜별)
-├── tuning/
-│   └── bolt-2017-defaults.md      # Bolt 2017 튜닝 레퍼런스 + 설정 체크리스트
-└── docs/
-    ├── playbook.md                # 대교 자율 관리 플레이북
-    ├── ssh-access.md              # SSH 접속 가이드 (키, 연결, 관리)
-    ├── api-reference.md           # API 레퍼런스 (Web, Tailscale, GitHub)
-    ├── troubleshooting.md         # 트러블슈팅 가이드 (6가지 시나리오)
-    ├── update-procedures.md       # 업데이트 절차 (Git + Tarball + 검증)
-    └── developer-tracker.md       # firestar5683 개발 활동 트래커
-```
-
----
-
-## 🔗 핵심 링크
-
-| 리소스 | URL |
-|--------|-----|
-| StarPilot GitHub | https://github.com/firestar5683/StarPilot |
-| StarPilot Wiki | https://wiki.firestar.link/ |
-| Bolt 하드웨어 가이드 | https://wiki.firestar.link/cars/bolt/ |
-| 설정 가이드 | https://wiki.firestar.link/usage/settings/ |
-| 운영 가이드 | https://wiki.firestar.link/usage/operation/ |
-| Galaxy 원격 설정 | https://wiki.firestar.link/usage/galaxy/ |
-| Discord 커뮤니티 | https://firestar.link/discord |
-| 관리 스킬 (Hermes) | `infrastructure/c3x-management` |
-
----
-
-## 🤖 자율 관리
-
-대교(Daegyo)는 다음 read-only 작업을 자율적으로 수행합니다:
-
-1. **주기적 업데이트 확인** — C3X 웹 API + GitHub 커밋 비교
-2. **SSH 상태 점검** — 버전·프로세스·온도·저장공간·updater 오류 확인
-3. **설정 검증** — Essential Settings Checklist와 실기 fingerprint 대조
-4. **진원님 알림** — 변경 후보·위험·재부팅 필요 여부 보고
-
-브랜치·Params·파일·firmware 변경과 업데이트 적용·재부팅은 차량 제어 경계이므로 매 작업마다 진원님의 명시 승인을 새로 받습니다.
-
----
-
-## ✅ CI 범위
-
-- `.github/workflows/baseline-ci.yml`는 PR/push에서 Markdown/상대링크, JSON/YAML/TOML 스냅샷 구문, 보수적 secret pattern scan만 수행합니다.
-- CI는 C3X/차량 SSH, Web UI, StarPilot API 호출, 업데이트, 재부팅을 실행하지 않는 read-only 문서/스냅샷 검증입니다.
-- 실제 차량/디바이스 변경은 기존 플레이북의 수동 승인과 별도 evidence 수집 절차로만 진행합니다.
-
----
-
-## 📝 라이선스
-
-이 저장소의 문서/로그는 자유롭게 참조 가능합니다.
-StarPilot 소프트웨어는 [firestar5683/StarPilot](https://github.com/firestar5683/StarPilot) 라이선스를 따릅니다.
+read-only 상태 점검과 upstream 비교는 자유롭게 수행합니다. Params/파일/branch/firmware 변경, 서비스 재시작, reboot, 첫 주행은 차량 제어 경계이므로 매 작업마다 오너의 fresh approval이 필요합니다. 모든 변경은 backup → exact target → offroad 검증 → owner-driven 저속 검증 순서로 진행합니다.

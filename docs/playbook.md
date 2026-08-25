@@ -1,123 +1,78 @@
-# 대교 (Daegyo) — C3X 자율 관리 플레이북
+# Daegyo C3X Management Playbook
 
-> **스킬:** `infrastructure/c3x-management`  
-> **실행 주체:** Hermes Agent on S23 Ultra (Termux)  
-> **대상:** Comma 3X (`tizi-the-pond`), Bolt EV 2017 non-ACC
+> **대상:** `tizi-the-galaxy` / Bolt EV 2017 non-ACC / Comma Pedal<br>
+> **원칙:** read-only는 증거 수집, mutation은 fresh approval + backup + exact target
 
----
-
-## 1. 상태 점검 (Health Check)
+## 1. Reachability and identity
 
 ```bash
-# 1. Tailscale API로 온라인 확인
-python3 -c "
-import json, urllib.request
-req = urllib.request.Request('https://api.tailscale.com/api/v2/device/4700657545486091')
-req.add_header('Authorization', 'Bearer <API_KEY>')
-d = json.loads(urllib.request.urlopen(req).read())
-print(f'Online: {d[\"lastSeen\"]}')
-print(f'Addresses: {d[\"addresses\"]}')
-"
+C3X=comma@tizi-the-galaxy.tail1546e7.ts.net
+KEY=~/.ssh/id_ed25519
 
-# 2. 웹 API로 소프트웨어 정보
-curl -s http://100.71.169.100:8082/api/stats | jq .softwareInfo
-
-# 3. SSH 접속 테스트
-ssh -o ConnectTimeout=5 -i ~/.ssh/id_ed25519 comma@100.71.169.100 echo OK
+ssh -i "$KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 \
+  "$C3X" 'id -un; hostname; cat /VERSION'
 ```
 
----
+현행 endpoint는 [`ssh-access.md`](ssh-access.md)를 따른다. `tizi-the-pond`는 history다.
 
-## 2. 업데이트 확인
+## 2. Routine read-only health
 
 ```bash
-# GitHub 최신 커밋 확인
-LATEST=$(curl -s https://api.github.com/repos/firestar5683/StarPilot/commits/StarPilot | jq -r .sha[0:7])
-
-# C3X 현재 커밋 확인
-CURRENT=$(ssh comma@100.71.169.100 'cd /data/openpilot && git log -1 --format=%h')
-
-echo "Latest: $LATEST, Current: $CURRENT"
-if [ "$LATEST" != "$CURRENT" ]; then
-  echo "업데이트 필요!"
-fi
-```
-
----
-
-## 3. 업데이트 실행
-
-### 표준 방법 (git fetch가 가능할 때)
-```bash
-ssh comma@100.71.169.100 '
-  cd /data/openpilot && \
-  git fetch origin StarPilot && \
-  git checkout StarPilot && \
-  git reset --hard origin/StarPilot
+ssh -i "$KEY" -o IdentitiesOnly=yes "$C3X" '
+  git -C /data/openpilot rev-parse HEAD HEAD^{tree}
+  git -C /data/openpilot branch --show-current
+  git -C /data/openpilot status --short
+  systemctl is-active comma.service ssh.socket tailscaled.service
+  df -h /data
 '
 ```
 
-### 대체 방법 (tarball 우회, 인터넷 느릴 때)
-```bash
-# Daegyo에서
-curl -fsSL "https://api.github.com/repos/firestar5683/StarPilot/tarball/StarPilot" -o ~/starpilot.tar.gz
-scp -i ~/.ssh/id_ed25519 ~/starpilot.tar.gz comma@192.168.55.203:/data/
+판정:
 
-# C3X에서
-ssh comma@192.168.55.203 '
-  cd /data && rm -rf starpilot_new && tar xzf starpilot.tar.gz && \
-  STAR_DIR=$(ls -d firestar5683-StarPilot-*) && \
-  rsync -a --delete $STAR_DIR/ /data/openpilot/ && \
-  cd /data/openpilot && rm -rf .git && git init && \
-  git remote add origin https://github.com/firestar5683/StarPilot
-'
-```
+- exact deployed SHA/tree와 immutable pin branch 일치
+- `comma`, SSH, Tailscale active
+- active-theme 6 paths 외 새 source drift 없음
+- disk/temperature/crash/tombstone에 blocking 신호 없음
+- secret-bearing Params와 route body는 출력하지 않음
 
----
+## 3. First ignition gate
 
-## 4. 사후 검증
+포맷 복구 후 아직 hardware-derived Params가 absent다. 차량 전원을 켠 뒤 다음을 read-only로 확인한다.
 
-```bash
-# 업데이트 후 확인
-ssh comma@100.71.169.100 '
-  echo "=== Version ==="
-  cd /data/openpilot && git log -1 --format="%h %s %ai"
-  echo "=== Remote ==="
-  git remote -v
-  echo "=== Branch ==="
-  git branch --show-current
-'
-```
+1. `CarParams`·`CarParamsPersistent`·`FirmwareQueryDone` 생성
+2. fingerprint `CHEVROLET_BOLT_CC_2017`
+3. Pedal interceptor와 `GMPedalLongitudinal`
+4. `openpilotLongitudinalControl=true`, `networkLocation=fwdCamera`
+5. longitudinal actuator delay `0.6` 및 exact-source PID
+6. Panda/manager/UI/camera health, blocking alert 없음
+7. `IsOffroad=1`, `IsOnroad=0`, `IsEngaged=0`에서 검증 마감
 
----
+이후에만 owner-driven 저속 first-drive를 별도 승인으로 수행한다. 즉시 수동 제동할 준비를 유지하며 원격에서 차량 engage/조향/가감속을 시도하지 않는다.
 
-## 5. 재부팅 요청 (진원님께)
+## 4. Settings audit
 
-```
-대교: "C3X StarPilot 업데이트 완료했습니다.
-      최신 커밋: <sha>, 날짜: <date>
-      변경사항: <summary>
-      재부팅만 해주세요! (전원 코드 뽑았다 꽂기)"
-```
+`/data/params/d`와 `/cache/params/d`를 함께 읽고 [`../config/current.md`](../config/current.md)의 key/value와 비교한다. symlink를 따르기 위해 `find -L`을 사용한다. 설정 변경은 한 번에 하나의 논리 묶음으로 하고, 변경 전 owner-only backup을 만든다.
 
----
+## 5. Upstream review
 
-## 6. 트러블슈팅
+moving `StarPilot` branch는 조회만 한다. 적용 후보는 exact SHA/tree를 고정하고 GM/Bolt/Pedal/longitudinal/Panda safety diff와 focused tests를 검토한다. 승인 없는 fetch-to-active, checkout, Params write, firmware flash, restart, reboot는 금지한다.
 
-| 증상 | 확인 | 해결 |
-|------|------|------|
-| SSH 거부 | `curl http://100.71.169.100:8082/api/params?key=SshEnabled` | C3X 설정에서 Enable SSH 재확인 |
-| C3X 오프라인 | Tailscale API `lastSeen` 확인 | 차량 시동 ON 확인 |
-| git fetch 타임아웃 | 직접 C3X에서 실행 | tarball 우회 방법 사용 |
-| IP 변경 | `nmap -p 8082 --open 192.168.55.0/24` | 새 IP로 업데이트 |
-| GitHub 키 인증 실패 | `https://github.com/jinon86.keys` 확인 | 진원님께 C3X SSH Keys 필드에 jinon86 재입력 요청 |
+상세 절차: [`update-procedures.md`](update-procedures.md).
 
----
+## 6. Evidence and repository update
 
-## 7. 안전 규칙
+실기 변경 또는 중요한 검증 뒤:
 
-- ⛔ `reboot` 명령어 직접 실행 불가 (Hermes hardline blocklist)
-- ⛔ `rm -rf /data/openpilot` 절대 금지 (항상 rsync --delete 사용)
-- ✅ 모든 변경 전 현재 상태를 이 레포의 `config/` 에 저장
-- ✅ 업데이트 로그를 `updates/YYYY-MM-DD.md` 로 기록
-- 🔑 Golden Safety Rule: 설정 변경 시 10% 이하만 조정
+1. `config/current.md`를 live evidence로 갱신
+2. `updates/YYYY-MM-DD-<topic>.md`에 시점 기록
+3. PR-first로 CI/review/merge
+4. 미완료 gate는 issue에 fail-closed로 남김
+
+## 7. Hard boundaries
+
+- 원격 주행·engage·조향·가감속 금지
+- owner 승인 없는 reboot/service restart 금지
+- `/data/openpilot` 삭제·broad reset/clean 금지
+- moving branch 직접 적용 금지
+- firmware/AGNOS/Params mutation은 별도 승인
+- route/video 삭제·전송은 별도 승인

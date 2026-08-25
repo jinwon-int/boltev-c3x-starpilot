@@ -1,79 +1,81 @@
 # Current C3X Configuration Snapshot
 
-> **촬영일:** 2026-08-24
-> **소스:** SSH direct query (공융 → 대교 → C3X) + The Pond API
-> **변경 경계:** read-only 감사. 업데이트·브랜치 수정·재부팅 없음
-> **다음 확인:** [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6) 게이트 충족 후
-
----
+> **live-check:** 2026-08-25 KST, Daegyo → Tailscale SSH<br>
+> **대상:** `tizi-the-galaxy` / Comma 3X `comma-dbba2a27`<br>
+> **경계:** 이 문서는 read-only snapshot입니다. first ignition 실증 전 차량 준비 완료를 주장하지 않습니다.
 
 ## 소프트웨어
 
-| 항목 | 값 |
-|------|-----|
-| Fork | `firestar5683/StarPilot` |
-| Branch | detached HEAD (from `StarPilot`) |
-| Installed Commit | `d931d300` (2026-06-19 `build`, prebuilt) |
-| Upstream HEAD | `28ec3ccb` (2026-08-23) — 미채택 |
-| Latest observed prebuilt | `e9f4c631` (2026-08-21) — 미채택 |
-| Delta | upstream 764 commits ahead |
-| Update decision | **보류** — Bolt 제어 diff·Pedal firmware·exact-head test 게이트 미완료 |
-
-## Git Remote
-
-```
-origin  https://github.com/firestar5683/StarPilot (fetch)
-origin  git@github.com:firestar5683/StarPilot (push)
-```
-
-## 네트워크
-
-| 항목 | 값 |
-|------|-----|
-| Tailscale IP | `100.71.169.100` |
-| Local WiFi IP | `192.168.55.222` (DHCP, 변동 가능) |
-| Web UI | `http://100.71.169.100:8082` |
-| SSH | Port 22, key auth (jinon86 GitHub) |
-| MagicDNS | `tizi-the-pond.tail1546e7.ts.net` |
-| Device ID | `4700657545486091` |
-
-## 차량
-
-| 항목 | 값 |
-|------|-----|
-| 차량 | Chevrolet Bolt EV 2017 |
-| ACC | Non-ACC |
-| Pedal | Comma Pedal (stop&go 지원) |
-| Torque | 4.5Nm (+50%) |
-| Runtime fingerprint | `CHEVROLET_BOLT_CC_2017` |
-| OP longitudinal | 활성 |
-| Pedal interceptor | 활성 |
-| Network location | `fwdCamera` |
-
-## 2026-08-24 런타임 상태
-
-| 항목 | 값 |
+| 항목 | 현행값 |
 |---|---|
-| 상태 | Online / Parked / Offroad |
-| CPU 온도 | 약 41°C |
-| 메모리 | 3.5 GiB 중 1.2 GiB 사용, 2.4 GiB 가용 |
-| `/data` | 84% 사용, 약 14 GiB 여유 |
-| `/` | 89% 사용, 약 517 MiB 여유 |
-| 핵심 프로세스 | manager·pandad·hardwared·UI·mapd 동작 |
-| 최근 crash/tombstone | 발견되지 않음 |
+| Fork | `firestar5683/StarPilot` |
+| HEAD | `28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede` |
+| Tree | `cd13b2453cb3f46cf0573e440a4af663a09ae74b` |
+| Branch | `bolt-starpilot-28ec3ccb` |
+| Origin | `file:///data/starpilot-pins/28ec3ccb.git` (immutable local pin) |
+| Upstream | GitHub `firestar5683/StarPilot` (조회용) |
+| AGNOS | `19.6.2` |
+| Overlay | exact candidate 활성화 완료 |
 
-## 자동 업데이터 상태
+`starpilot/assets/active_theme/` 아래 5개 tracked directory 수정과 `steering_wheel/` untracked directory는 runtime theme materialization입니다. broad reset/clean 대상으로 취급하지 않습니다.
 
-- `UpdaterTargetBranch=HEAD` — detached HEAD가 잘못 target branch로 고정됨.
-- `UpdaterFetchAvailable=1`, `UpdateAvailable=0`.
-- updater는 `git checkout -B HEAD FETCH_HEAD`에서 `HEAD is not a valid branch name`으로 실패한다.
-- 후보 SHA·백업·롤백 계획 승인 전에 target branch를 수정하지 않는다. 상세 [2026-08-24 감사](../updates/2026-08-24-audit.md) 및 [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6).
+## 네트워크와 서비스
 
-## 주행 통계
+| 항목 | 현행값 |
+|---|---|
+| Tailscale identity | `tizi-the-galaxy` |
+| Tailscale IPv4 | `100.90.4.121` |
+| MagicDNS | `tizi-the-galaxy.tail1546e7.ts.net` |
+| Local Wi-Fi | `wlan0=192.168.55.222/24` (DHCP, mutable) |
+| SSH | port 22, user `comma`, Daegyo C3X key |
+| Web UI | `http://100.90.4.121:8082` |
+| Services | `comma.service`, `ssh.socket`, `tailscaled.service` active |
+| `/data` | 약 2.9 GiB / 89 GiB, 4% 사용 |
+| routes | 복구 후 1개 directory 관측 |
 
-| 항목 | 값 |
-|------|-----|
-| 전체 주행 | ~5,396 km (FrogPilot 기준) |
-| 리셋 후 | ~266 km |
+SSH ED25519 host-key fingerprint(live): `SHA256:kxVkcmAn96V4ezKlV2mefv3TQbqHnREFmThp2zvo4ls`.
 
-> 주의: 통계값은 SSH/web API로 실측 필요
+## 현행 승인 profile
+
+아래 값은 `/data/params/d`와 `/cache/params/d`의 live parity를 확인했습니다.
+
+| 기능 | key | 값 |
+|---|---|---|
+| Experimental mode | `ExperimentalMode` | `0` |
+| Conditional Experimental | `ConditionalExperimental` | `1` |
+| Curve trigger | `CECurves` | `0` |
+| Lead/slower/stopped | `CELead` / `CESlowerLead` / `CEStoppedLead` | `1 / 1 / 1` |
+| Stop prediction | `CEModelStopTime` | `7.7` |
+| Curve Speed Controller | `CurveSpeedController` | `1` |
+| Accel / Decel | `AccelerationProfile` / `DecelerationProfile` | `0(Standard) / 1(Eco)` |
+| Reverse cruise | `ReverseCruise` | `1` |
+| Force stop / standstill | `ForceStops` / `ForceStandstill` | `1 / 0` |
+| Manual fingerprint | `ForceFingerprint` / `CarModel` | `1 / CHEVROLET_BOLT_CC_2017` |
+| AoL / advanced lateral | `AlwaysOnLateral` / `AdvancedLateralTune` | `1 / 1` |
+| OP longitudinal | `DisableOpenpilotLongitudinal` | `0` |
+| GM Pedal longitudinal | `GMPedalLongitudinal` | `1` |
+| NNFF / NNFFLite | `NNFF` / `NNFFLite` | `0 / 0` |
+| Turn desires / randomizer | `TurnDesires` / `ModelRandomizer` | `0 / 0` |
+
+복구 당시 owner-only backup: `/data/boltev-recovery/28ec3ccb-firestar-settings-20260824T175925Z`.
+
+## First ignition gate — pending
+
+2026-08-25 live readback에서 다음 키는 모두 absent였습니다.
+
+- `CarParams`
+- `CarParamsPersistent`
+- `CarParamsPrevRoute`
+- `FirmwareQueryDone`
+- `IsOffroad` / `IsOnroad` / `IsEngaged`
+
+차량 전원을 켠 뒤 아래를 확인해야 정합성이 완성됩니다.
+
+1. runtime fingerprint `CHEVROLET_BOLT_CC_2017`
+2. Comma Pedal 인식과 `GMPedalLongitudinal`
+3. `openpilotLongitudinalControl=true`, `networkLocation=fwdCamera`
+4. exact source 기대값인 longitudinal actuator delay `0.6`와 새 PID
+5. Panda/manager/UI/camera health 및 blocking alert 없음
+6. offroad 확인 후 owner-driven 저속 first-drive, 즉시 수동 제동 준비
+
+이 gate 전에는 **소프트웨어 설치 완료**와 **실차 검증 완료**를 구분합니다.
