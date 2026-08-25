@@ -1,168 +1,86 @@
 # C3X Troubleshooting Guide
 
-> **관리:** 대교 (Daegyo) on S23 Ultra (Termux)
+> **현행 identity:** `tizi-the-galaxy` / `100.90.4.121`<br>
+> **안전:** 진단은 read-only. 차량 전원·firmware·service·Params 변경은 fresh approval.
 
----
-
-## 1. C3X 접속 불가 (Unreachable)
-
-### 증상
-- SSH 연결 타임아웃
-- 웹 UI 로딩 안 됨
-- ping 응답 없음
-
-### 진단 순서
+## 1. Unreachable
 
 ```bash
-# Step 1: Tailscale API로 기기 상태 확인
-python3 -c "
-import json, urllib.request
-req = urllib.request.Request('https://api.tailscale.com/api/v2/device/4700657545486091')
-req.add_header('Authorization', 'Bearer <API_KEY>')
-d = json.loads(urllib.request.urlopen(req).read())
-print(f\"lastSeen: {d['lastSeen']}\")
-print(f\"connected: {d['connectedToControl']}\")
-"
+# Tailnet 관리 노드에서
+ tailscale status | grep tizi-the-galaxy
+ tailscale ping -c 3 tizi-the-galaxy
+
+# Daegyo에서 bounded SSH
+ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+  -o ConnectTimeout=8 comma@100.90.4.121 'echo SSH_OK'
 ```
 
-### 원인별 해결
+| 관측 | 해석/다음 단계 |
+|---|---|
+| peer offline | 차량/C3X 전원과 Wi-Fi를 물리 확인 |
+| ping 성공, port 22 timeout | 부팅 중 또는 `ssh.socket` 비활성 |
+| port 22 banner, publickey denied | user `comma`, Daegyo C3X key, GitHub key sync 확인 |
+| SSH만 되고 Web 8082 down | `comma.service`와 UI 로그 read-only 확인 |
+| old endpoint만 시도 | `tizi-the-pond` / `100.71.169.100` 사용 중단 |
 
-| 원인 | 확인 방법 | 해결 |
-|------|-----------|------|
-| **C3X 전원 OFF** | Tailscale API `lastSeen`이 오래됨 | 차량 시동 ON |
-| **OBD-II 전원 차단** | C3X 화면이 꺼져 있음 | 차량 시동 ON (OBD-II 포트가 전원 공급) |
-| **IP 변경** | `lastSeen`은 최신이지만 접속 안 됨 | `nmap -p 8082 --open 192.168.55.0/24` 스캔 |
-| **WiFi 변경** | C3X가 새 네트워크에 연결됨 | C3X 터치스크린에서 WiFi 재설정 |
-| **Tailscale 연결 끊김** | API `connectedToControl: false` | C3X 화면에서 Tailscale 재연결 |
+현재 local Wi-Fi는 `192.168.55.222`지만 DHCP 값이다. 같은 LAN에서 사용하기 전에 live address를 다시 확인한다.
 
-### IP 스캔 명령어
+## 2. Host-key mismatch
+
+포맷·OS 교체 뒤 SSH host key가 바뀔 수 있다. 무조건 우회하지 말고 실기 identity와 live fingerprint를 교차 확인한다.
+
+현행 ED25519 fingerprint(2026-08-25):
+
+```
+SHA256:kxVkcmAn96V4ezKlV2mefv3TQbqHnREFmThp2zvo4ls
+```
+
+검증 후에만 해당 host의 known_hosts entry를 갱신한다.
+
+## 3. Permission denied
 
 ```bash
-# 로컬 네트워크에서 C3X 찾기 (8082 포트)
-nmap -p 8082 --open 192.168.55.0/24
-
-# 더 빠른 스캔 (상위 20개 호스트만)
-nmap -p 8082 --open 192.168.55.1-254 --host-timeout 2s
+ssh -vvv -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes comma@100.90.4.121
 ```
 
----
+확인 순서:
 
-## 2. SSH Permission Denied
+1. user가 `comma`인지
+2. key가 `~/.ssh/id_ed25519` / label `daegyo-s23-for-c3x`인지
+3. C3X Settings → Network → Enable SSH
+4. GitHub SSH Keys user `jinon86` 동기화
+5. `ssh.socket` active 여부
 
-### 증상
-```
-Permission denied (publickey).
-```
-또는
-```
-ssh: connect to host 100.71.169.100 port 22: Connection refused
-```
+비밀번호 fallback을 자동화·문서화하지 않는다.
 
-### 진단 순서
+## 4. StarPilot/manager unhealthy
 
 ```bash
-# Step 1: SSH 서비스 활성화 여부
-curl -s http://100.71.169.100:8082/api/params?key=SshEnabled
-# "true" 여야 함
-
-# Step 2: GitHub 키 확인
-curl -s https://github.com/jinon86.keys
-# daegyo 키가 목록에 있어야 함
-
-# Step 3: 디버그 모드로 접속 시도
-ssh -vvv -i ~/.ssh/id_ed25519 comma@100.71.169.100
-```
-
-### 원인별 해결
-
-| 원인 | 해결 |
-|------|------|
-| **SSH 비활성화** | C3X Settings → Network → Enable SSH 토글 ON |
-| **GitHub 키 없음** | https://github.com/settings/keys 에 daegyo 키 등록 |
-| **C3X 키 캐시 오래됨** | 진원님께 C3X SSH Keys 필드 `jinon86` 삭제 후 재입력 요청 |
-| **포트 22 차단** | C3X가 신뢰할 수 있는 네트워크인지 확인 |
-| **C3X 부팅 중** | 1~2분 대기 후 재시도 (SSH 데몬 시작 시간) |
-
----
-
-## 3. Git Fetch Timeout
-
-### 증상
-```
-fatal: unable to access 'https://github.com/firestar5683/StarPilot/':
-  Failed to connect to github.com port 443: Connection timed out
-```
-
-### 원인
-C3X의 차량 셀룰러/WiFi 인터넷이 느리거나 불안정함
-
-### 해결: Tarball 우회 방법
-
-```bash
-# 1. Daegyo에서 GitHub tarball 다운로드 (빠른 인터넷)
-curl -fsSL "https://api.github.com/repos/firestar5683/StarPilot/tarball/StarPilot" \
-  -o ~/starpilot.tar.gz
-
-# 2. 로컬 WiFi로 C3X에 전송 (Tailscale보다 빠름)
-scp -i ~/.ssh/id_ed25519 ~/starpilot.tar.gz comma@192.168.55.203:/data/
-
-# 3. C3X에서 압축 해제 및 적용
-ssh comma@192.168.55.203 '
-  cd /data && \
-  rm -rf starpilot_new && \
-  tar xzf starpilot.tar.gz && \
-  STAR_DIR=$(ls -d firestar5683-StarPilot-*) && \
-  rsync -a --delete $STAR_DIR/ /data/openpilot/ && \
-  cd /data/openpilot && rm -rf .git && git init && \
-  git remote add origin https://github.com/firestar5683/StarPilot && \
-  rm /data/starpilot.tar.gz
+ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes comma@100.90.4.121 '
+  systemctl is-active comma.service
+  journalctl -u comma.service -n 100 --no-pager
+  git -C /data/openpilot rev-parse HEAD HEAD^{tree}
+  git -C /data/openpilot status --short
 '
 ```
 
-> 💡 **로컬 WiFi IP (`192.168.55.203`)를 사용하세요.** Tailscale IP보다 직접 연결이 훨씬 빠릅니다.
+로그는 bounded하게 읽고 token/DongleId/route body를 기록하지 않는다. 서비스 restart는 자동 복구 절차가 아니라 별도 승인 mutation이다.
 
----
+## 5. First ignition Params absent
 
-## 4. 웹 UI 접속 가능하지만 SSH 안 됨
+복구 직후 `CarParams`, `CarParamsPersistent`, `FirmwareQueryDone`가 absent인 것은 첫 ignition 전 상태일 수 있다. 파일을 임의 생성·복사하지 않는다. 차량 전원을 켜고 manager가 hardware query를 완료하도록 한 뒤 fingerprint/Pedal/longitudinal/Panda를 확인한다.
 
-### 증상
-- `http://100.71.169.100:8082` 는 열리는데
-- `ssh comma@100.71.169.100` 는 Connection refused
+잘못된 fingerprint, Pedal 미인식, blocking alert가 있으면 **주행/engage 금지**하고 증거만 수집한다.
 
-### 해결
-1. SSH 데몬 기다리기 — 부팅 후 1~2분 소요
-2. C3X Settings → Network → Enable SSH 껐다 켜기
-3. 방화벽 확인 — C3X가 신뢰하는 네트워크인지
+## 6. Git/updater failure
 
----
+active origin은 immutable local pin이다. moving upstream으로 즉시 repoint하거나 `git reset --hard`, tarball rsync, `.git` 삭제를 하지 않는다. 현재 HEAD/tree/pin/backup을 보존하고 [`update-procedures.md`](update-procedures.md)의 exact-candidate gate로 돌아간다.
 
-## 5. Webhook / API 오작동
+## 7. Web UI/API mismatch
 
-### 증상
-- `curl http://100.71.169.100:8082/api/stats` 응답 없음
-- API 엔드포인트 404
-
-### 확인
 ```bash
-# 기본 연결 확인
-curl -s -o /dev/null -w "%{http_code}" http://100.71.169.100:8082/
-
-# API 목록 확인 (가능한 경우)
-curl -s http://100.71.169.100:8082/api/
+curl -fsS --max-time 5 http://100.90.4.121:8082/api/stats | jq .softwareInfo
+curl -fsS --max-time 5 'http://100.90.4.121:8082/api/params?key=SshEnabled'
 ```
 
----
-
-## 6. C3X Web UI SPA가 POST를 가로챔
-
-### 증상
-- `curl -X POST http://.../api/reboot` → HTML 응답
-- API를 통한 reboot 불가
-
-### 설명
-C3X의 Single Page Application이 모든 POST 요청을 가로채서 HTML로 응답합니다.
-`reboot` 명령어는 SSH나 API를 통한 실행이 불가능합니다.
-
-### 해결
-- 진원님께 직접 재부팅 요청 (전원 코드 뽑았다 꽂기)
-- 또는 차량 시동 OFF → ON
+POST가 HTML을 반환하면 mutation 성공으로 판정하지 않는다. reboot/update/Params write는 Web UI 추정이 아니라 승인된 절차와 live postcondition으로만 확인한다.

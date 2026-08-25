@@ -1,223 +1,108 @@
-# C3X Update Procedures
+# C3X Exact-Pin Update Procedure
 
-> **관리:** 대교 (Daegyo) on S23 Ultra (Termux)  
-> **대상:** Comma 3X (`tizi-the-pond`), StarPilot (`firestar5683/StarPilot`, `StarPilot` 브랜치)
->
-> **2026-08-24 BLOCK:** 기기가 detached HEAD이고 `UpdaterTargetBranch=HEAD`라 자동 updater가 실패한다. [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6)의 Pedal firmware·exact SHA·테스트·백업 게이트를 충족하기 전에는 아래 적용 명령을 실행하지 않는다.
+> **대상:** `tizi-the-galaxy`, StarPilot, Bolt EV 2017 non-ACC + Comma Pedal<br>
+> **현행 baseline:** `28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede`, AGNOS 19.6.2<br>
+> **경계:** update, Params write, firmware, restart, reboot는 각각 fresh approval 범위 안에서만 실행
 
----
+## Current architecture
 
-## 업데이트 전 점검
+Active checkout `/data/openpilot`은 branch `bolt-starpilot-28ec3ccb`에서 self-contained local bare pin `file:///data/starpilot-pins/28ec3ccb.git`을 origin으로 사용합니다. GitHub upstream은 후보 조사용입니다.
 
-```bash
-# 1. C3X 온라인 상태 확인
-ssh -o ConnectTimeout=5 -i ~/.ssh/id_ed25519 comma@100.71.169.100 echo OK
+과거 detached `d931d300` / `UpdaterTargetBranch=HEAD` blocker와 moving tarball 방식은 [`../updates/2026-08-24-audit.md`](../updates/2026-08-24-audit.md)의 history입니다. 현행 절차로 재사용하지 않습니다.
 
-# 2. 현재 상태 확인
-ssh comma@100.71.169.100 'cd /data/openpilot && \
-  echo "=== Commit ===" && git log -1 --format="%h %s %ai" && \
-  echo "=== Branch ===" && git branch --show-current && \
-  echo "=== Remote ===" && git remote -v'
-
-# 3. GitHub 최신 커밋과 비교
-LATEST=$(curl -s https://api.github.com/repos/firestar5683/StarPilot/commits/StarPilot | jq -r .sha[0:7])
-CURRENT=$(ssh comma@100.71.169.100 'cd /data/openpilot && git log -1 --format=%h')
-echo "Latest: $LATEST, Current: $CURRENT"
-
-# 4. updater target/exception 확인 — 읽기 전용
-ssh comma@100.71.169.100 '
-  for k in UpdaterTargetBranch UpdaterFetchAvailable UpdateAvailable LastUpdateException; do
-    f=/data/params/d/$k
-    [ -r "$f" ] && printf "%s=%s\n" "$k" "$(tr -d "\000\r\n" < "$f")"
-  done
-'
-```
-
-## 필수 승인 게이트
-
-1. 차량이 Parked/Offroad인지 확인한다.
-2. Gen1 Bolt Pedal firmware가 현행 StarPilot과 호환되는지 확인한다.
-3. moving branch가 아니라 **exact candidate SHA**를 선정한다.
-4. Bolt/GM/pedal/longitudinal/safety diff와 focused test 증거를 남긴다.
-5. 현재 HEAD·Params·설정·dirty assets·updater 상태를 백업한다.
-6. target branch 수정·checkout·reboot는 각각 오너 승인 범위 안에서만 수행한다.
-7. offroad 검증 뒤 오너가 저속 첫 주행을 하고 즉시 수동 제동할 준비를 한다.
-
----
-
-## Method 1: Git 표준 업데이트 (인터넷 양호할 때)
-
-> **현재 실행 금지:** 아래 명령은 moving `StarPilot` HEAD를 즉시 적용하고 dirty 파일을 파괴할 수 있다. [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6)에서 exact SHA·백업 절차를 확정할 때까지 역사적 참고로만 둔다.
+## 1. Read-only preflight
 
 ```bash
-ssh comma@100.71.169.100 '
-  cd /data/openpilot && \
-  git fetch origin StarPilot && \
-  git checkout StarPilot && \
-  git reset --hard origin/StarPilot
-'
+C3X=comma@tizi-the-galaxy.tail1546e7.ts.net
+KEY=~/.ssh/id_ed25519
 
-# 상태 재확인
-ssh comma@100.71.169.100 'cd /data/openpilot && git log -1 --format="%h %s %ai"'
-```
-
----
-
-## Method 2: Tarball 우회 업데이트 (인터넷 느릴 때)
-
-C3X의 git fetch가 타임아웃될 때 사용했던 역사적 방법입니다.
-
-> **현재 실행 금지:** 이 절차는 moving branch tarball을 받고 기존 `.git`을 삭제하며, tarball에는 커밋 메타데이터가 없어 마지막 `git log` 검증도 성립하지 않는다. pin·무결성·원자 교체·롤백 절차를 다시 설계하기 전에는 사용하지 않는다.
-
-### 전체 절차
-
-```bash
-# ═══════════════════════════════════════════
-# Phase 1: Daegyo에서 다운로드
-# ═══════════════════════════════════════════
-cd ~
-echo "Downloading StarPilot tarball..."
-curl -fsSL "https://api.github.com/repos/firestar5683/StarPilot/tarball/StarPilot" \
-  -o ~/starpilot.tar.gz
-
-echo "Archive size: $(du -h ~/starpilot.tar.gz | cut -f1)"
-
-# ═══════════════════════════════════════════
-# Phase 2: C3X로 전송 (로컬 WiFi)
-# ═══════════════════════════════════════════
-echo "Transferring to C3X via local WiFi..."
-scp -i ~/.ssh/id_ed25519 ~/starpilot.tar.gz comma@192.168.55.203:/data/
-
-# ═══════════════════════════════════════════
-# Phase 3: C3X에서 압축 해제 및 적용
-# ═══════════════════════════════════════════
-ssh comma@192.168.55.203 '
-  set -e
-  cd /data
-
-  echo "Extracting..."
-  rm -rf starpilot_new
-  tar xzf starpilot.tar.gz
-
-  STAR_DIR=$(ls -d firestar5683-StarPilot-*)
-  echo "Source dir: $STAR_DIR"
-
-  echo "Syncing to /data/openpilot..."
-  rsync -a --delete $STAR_DIR/ /data/openpilot/
-
-  echo "Reinitializing git..."
+ssh -i "$KEY" -o IdentitiesOnly=yes "$C3X" '
   cd /data/openpilot
-  rm -rf .git
-  git init
-  git remote add origin https://github.com/firestar5683/StarPilot
-
-  echo "Cleaning up..."
-  rm /data/starpilot.tar.gz
-  rm -rf /data/$STAR_DIR
-
-  echo "Done! New commit:"
-  git log -1 --format="%h %s %ai"
-'
-
-# ═══════════════════════════════════════════
-# Phase 4: Daegyo 정리
-# ═══════════════════════════════════════════
-rm ~/starpilot.tar.gz
-```
-
----
-
-## Method 3: Fork/Branch 전환
-
-다른 포크나 브랜치로 전환할 때 사용합니다. 현재 C3X에서는 target branch 수정이 updater의 즉시 fetch/stage를 유발할 수 있으므로 [issue #6](https://github.com/jinwon-int/boltev-c3x-starpilot/issues/6) 배포 창 전에는 실행하지 않습니다.
-
-```bash
-# 리모트 변경
-ssh comma@100.71.169.100 '
-  cd /data/openpilot && \
-  git remote set-url origin https://github.com/<new-owner>/<new-repo>.git
-'
-
-# 새 브랜치 fetch 및 전환
-ssh comma@100.71.169.100 '
-  cd /data/openpilot && \
-  git fetch origin <new-branch> && \
-  git checkout <new-branch>
-'
-```
-
-### Bolt 2017 관련 Fork/브랜치 목록
-
-| Fork | 브랜치 | 상태 | 비고 |
-|------|--------|------|------|
-| `firestar5683/StarPilot` | `StarPilot` | ✅ 활성 | 메인 브랜치 (권장) |
-| `firestar5683/StarPilot` | `Dom` | 🟡 대체 | Bolt 튜닝 적음 |
-| `jc01rho/StarPilot` | `paddleuncompiled` | ❌ 276커밋 뒤 | 구형 |
-| `firestar5683/StarPilot-2017` | `Kaofui` | ❌ 삭제됨 | 2026-02-17 중단 |
-
----
-
-## 업데이트 후 검증
-
-### 필수 확인사항
-
-```bash
-ssh comma@100.71.169.100 '
-  echo "=== Version ==="
-  cd /data/openpilot
-  git log -1 --format="%h %s %ai"
+  git rev-parse HEAD HEAD^{tree}
   git branch --show-current
-
-  echo "=== Remote ==="
   git remote -v
-
-  echo "=== Disk ==="
-  df -h /data | grep /data
-
-  echo "=== Process ==="
-  ps aux | grep openpilot | grep -v grep | head -3
+  git status --short
+  cat /VERSION
+  systemctl is-active comma.service
+  df -h /data
 '
 ```
 
-### 설정 검증 체크리스트
+차량 상태 Params가 absent면 offroad라고 추정하지 않습니다. owner가 물리 상태를 확인하고 first ignition gate를 먼저 마칩니다.
 
-업데이트 후 C3X Web UI에서 확인할 필수 설정들:
+## 2. Candidate gate
 
-- [ ] Vehicle Controls → **Auto Fingerprint: OFF** (2017 수동 선택)
-- [ ] Conditional Experimental Mode (CEM): **ON**
-- [ ] Human Like Following: **OFF**
-- [ ] Human Like Acceleration: **OFF**
-- [ ] Curve Speed Controller: **ON**
-- [ ] Always on Lateral (AoL): **ON**
+1. moving branch가 아닌 exact SHA와 tree를 고정
+2. GM/Bolt/Pedal/longitudinal/Panda safety 전체 diff 요약
+3. exact candidate focused tests와 알려진 결함 확인
+4. Pedal/AGNOS 요구 버전과 현재 hardware 호환 확인
+5. rollback target, artifact, 예상 reboot 횟수 기록
+6. owner에게 source update/OS firmware/reboot 범위를 분리해 승인 요청
 
-전체 설정 체크리스트는 `tuning/bolt-2017-defaults.md` 참조
+## 3. Backup gate
 
----
+승인된 deployment window에서만 owner-only backup을 만듭니다.
 
-## 재부팅 (업데이트 적용)
+- current HEAD/tree/branch/remotes
+- tracked diff 및 runtime active-theme archive
+- `/data/params`와 필요한 cache settings snapshot
+- updater state와 AGNOS slot/version
+- manifest SHA-256
 
-⚠️ **재부팅은 차량 제어 소프트웨어 적용 경계입니다. 매 작업마다 진원님의 명시 승인을 새로 받아야 합니다.**
+backup 경로·mode·manifest를 검증하기 전 active checkout을 변경하지 않습니다. secret-bearing 값은 레포나 PR에 기록하지 않습니다.
 
-승인 후 다음 중 하나를 수행:
-- **C3X 전원 코드 뽑았다 꽂기**
-- **차량 시동 껐다 켜기**
-- **C3X USB-C 전원 어댑터로 재부팅**
+## 4. Immutable candidate pin
 
-재부팅 후 1~2분 후 SSH/웹 UI 접속 재확인.
+후보는 C3X 외부 clean checkout에서 fetch·fsck·test한 뒤, C3X에 self-contained bare pin으로 보존합니다. active origin을 moving GitHub branch로 직접 두지 않습니다.
 
----
+개념적 postcondition:
 
-## 업데이트 로그 기록
-
-업데이트 완료 후 이 레포의 `updates/YYYY-MM-DD.md` 에 기록:
-
-```markdown
-# YYYY-MM-DD — 업데이트
-
-| 항목 | 변경 전 | 변경 후 |
-|------|---------|---------|
-| 브랜치 | ... | ... |
-| 커밋 | ... | ... |
-| 날짜 | ... | ... |
-| 방법 | git / tarball |
+```text
+/data/starpilot-pins/<short-sha>.git  self-contained + fsck clean
+/data/openpilot HEAD                 exact approved SHA
+/data/openpilot HEAD^{tree}          expected tree
+branch                               candidate-specific stable name
+origin                               file:///data/starpilot-pins/<short-sha>.git
+upstream                             GitHub read-only comparison
 ```
+
+실행 명령은 후보마다 source layout/updater/AGNOS 요구가 달라지므로 PR/issue에 exact plan을 먼저 기록합니다.
+
+## 5. Activation and reboot
+
+- 차량 parked/offroad/not engaged를 live evidence로 확인
+- updater finalization과 AGNOS inactive-slot flash를 별도 postcondition으로 확인
+- reboot는 owner의 명시 승인 뒤 한 번씩 수행
+- 재접속이 끊기면 임의 추가 reboot 대신 Tailscale/local Wi-Fi/화면 상태로 fail closed
+
+## 6. Post-activation offroad verification
+
+```bash
+ssh -i "$KEY" -o IdentitiesOnly=yes "$C3X" '
+  git -C /data/openpilot rev-parse HEAD HEAD^{tree}
+  git -C /data/openpilot branch --show-current
+  cat /VERSION
+  systemctl is-active comma.service ssh.socket tailscaled.service
+  git -C /data/openpilot status --short
+'
+```
+
+추가 필수:
+
+- expected fingerprint/Pedal/OP longitudinal/delay/PID
+- Panda/manager/UI/camera health
+- blocking alerts 없음
+- settings stores parity
+- backup/rollback intact
+
+## 7. First-drive gate
+
+owner가 저속·안전 장소에서 직접 운전하며 즉시 수동 제동할 준비를 합니다. 원격 agent는 engage, 조향, 가속, 제동을 수행하지 않습니다. 이상 동작 시 즉시 disengage하고 rollback 판단 전 evidence를 보존합니다.
+
+## Prohibited shortcuts
+
+- `git reset --hard` 또는 broad `git clean`으로 runtime assets 제거
+- moving `StarPilot` HEAD 즉시 적용
+- tarball rsync 후 `.git` 삭제
+- approval 없는 updater target 변경·service restart·reboot
+- firmware version을 추정해 gate 통과 처리
