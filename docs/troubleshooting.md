@@ -72,11 +72,26 @@ ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes comma@100.90.4.121 '
 
 잘못된 fingerprint, Pedal 미인식, blocking alert가 있으면 **주행/engage 금지**하고 증거만 수집한다.
 
-## 6. Git/updater failure
+## 6. Panda `interruptRateCan2` / empty OBSTACLE bus
+
+2026-08-27 첫 ignition에서 다음 조합이 세 번 재현됐습니다.
+
+- `commIssue`, `locationdTemporaryError`
+- `selfdriveState.engageable=false`
+- Panda `faultTemp: interruptRateCan2`
+- logical bus 1(`OBSTACLE`) RX 0, `errorPassive=true`, 초기 TX 뒤 error 폭증
+
+C3X 화면·camera·manager가 정상처럼 보여도 Panda health 원문이 정상이라는 뜻은 아닙니다. 즉시 engage를 중단하고 P단·0km/h·`controlsAllowed=false`를 확인합니다. reboot나 차량 전원 사이클로 동일 fault가 재현되면 반복 재부팅하지 않습니다.
+
+물리 배선 불량으로 바로 확정하지 않습니다. 현행 Bolt 설정은 `radarUnavailable=true`이고 bus 1은 정상 주행 traffic이 없는 topology일 수 있습니다. startup diagnostics/software, Panda transceiver, harness를 순서대로 분리합니다. 상세 근거와 미배포 후보 패치는 [2026-08-27 장애 기록](../updates/2026-08-27-first-drive-can2-fault.md)을 참조합니다.
+
+후보 패치를 live checkout에 직접 `git apply`하지 않습니다. [`patches/README.md`](../patches/README.md)의 exact-base·CI·새 pin·approval gate를 따릅니다.
+
+## 7. Git/updater failure
 
 active origin은 immutable local pin이다. moving upstream으로 즉시 repoint하거나 `git reset --hard`, tarball rsync, `.git` 삭제를 하지 않는다. 현재 HEAD/tree/pin/backup을 보존하고 [`update-procedures.md`](update-procedures.md)의 exact-candidate gate로 돌아간다.
 
-## 7. Web UI/API mismatch
+## 8. Web UI/API mismatch
 
 ```bash
 curl -fsS --max-time 5 http://100.90.4.121:8082/api/stats | jq .softwareInfo
