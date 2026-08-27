@@ -42,6 +42,7 @@ jobs:
           python -m pip install --disable-pip-version-check pycapnp pytest
           ln -s . openpilot
           PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q \
+            -o addopts='' \
             --confcutdir=selfdrive/car/tests \
             selfdrive/car/tests/test_card_cache.py \
             -k 'not avoids_live_diagnostic_queries'
