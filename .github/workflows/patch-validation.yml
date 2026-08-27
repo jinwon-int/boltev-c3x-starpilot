@@ -39,7 +39,7 @@ jobs:
       - name: Run isolated cache guard tests
         working-directory: /tmp/starpilot
         run: |
-          python -m pip install --disable-pip-version-check pycapnp pytest
+          python -m pip install --disable-pip-version-check 'pycapnp==2.1.0' pytest
           ln -s . openpilot
           PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q \
             -o addopts='' \
