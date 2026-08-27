@@ -15,6 +15,6 @@
 
 | 파일 | exact base | SHA-256 | 상태 |
 |---|---|---|---|
-| `28ec3ccb-forced-fingerprint-cache.patch` | `28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede` | `517a9cb835d61f45b7efd1460c936454a14a6d733fb19ff89f88f270ec711e79` | 검토 후보 · 실차 미배포 |
+| `28ec3ccb-forced-fingerprint-cache.patch` | `28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede` | `e82d1f07cf94f842a1f08471a66294ac99ccacdc1a75994770e8ed8bbbe80858` | 검토 후보 · 실차 미배포 |
 
 이 후보는 `ForceFingerprint=1`일 때만, `CarParamsPersistent`의 fingerprint·brand·VIN·firmware evidence가 현재 강제 모델과 모두 일치하면 이를 startup cache로 재사용합니다. 검증 실패·불일치·손상 시 기존 live query 경로로 fail closed합니다.

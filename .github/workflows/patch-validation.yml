@@ -27,7 +27,7 @@ jobs:
 
       - name: Verify candidate digest and applicability
         run: |
-          echo '517a9cb835d61f45b7efd1460c936454a14a6d733fb19ff89f88f270ec711e79  patches/28ec3ccb-forced-fingerprint-cache.patch' | sha256sum -c -
+          echo 'e82d1f07cf94f842a1f08471a66294ac99ccacdc1a75994770e8ed8bbbe80858  patches/28ec3ccb-forced-fingerprint-cache.patch' | sha256sum -c -
           git -C /tmp/starpilot apply --check "$GITHUB_WORKSPACE/patches/28ec3ccb-forced-fingerprint-cache.patch"
           git -C /tmp/starpilot apply "$GITHUB_WORKSPACE/patches/28ec3ccb-forced-fingerprint-cache.patch"
           git -C /tmp/starpilot diff --check

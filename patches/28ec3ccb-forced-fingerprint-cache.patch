@@ -1,15 +1,16 @@
 diff --git a/selfdrive/car/car_params_cache.py b/selfdrive/car/car_params_cache.py
 new file mode 100644
-index 00000000..4a7ef4dd
+index 00000000..a4d6a65f
 --- /dev/null
 +++ b/selfdrive/car/car_params_cache.py
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,38 @@
 +import re
 +
 +from cereal import car
 +
 +
 +VIN_RE = re.compile(r"[A-HJ-NPR-Z0-9]{17}")
++VIN_UNKNOWN = "0" * 17
 +
 +
 +def get_cached_params_raw(params, logger) -> bytes | None:
@@ -28,6 +29,7 @@ index 00000000..4a7ef4dd
 +        persistent_params.carFingerprint == forced_model and
 +        persistent_params.brand != "mock" and
 +        len(persistent_params.carFw) > 0 and
++        persistent_params.carVin != VIN_UNKNOWN and
 +        VIN_RE.fullmatch(persistent_params.carVin) is not None
 +      )
 +  except Exception:
