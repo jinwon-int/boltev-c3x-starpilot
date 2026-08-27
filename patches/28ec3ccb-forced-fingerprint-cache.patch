@@ -1,0 +1,193 @@
+diff --git a/selfdrive/car/car_params_cache.py b/selfdrive/car/car_params_cache.py
+new file mode 100644
+index 00000000..4a7ef4dd
+--- /dev/null
++++ b/selfdrive/car/car_params_cache.py
+@@ -0,0 +1,36 @@
++import re
++
++from cereal import car
++
++
++VIN_RE = re.compile(r"[A-HJ-NPR-Z0-9]{17}")
++
++
++def get_cached_params_raw(params, logger) -> bytes | None:
++  cached_params_raw = params.get("CarParamsCache")
++  if cached_params_raw is not None or not params.get_bool("ForceFingerprint"):
++    return cached_params_raw
++
++  persistent_params_raw = params.get("CarParamsPersistent")
++  forced_model = params.get("CarModel", encoding="utf-8")
++  if persistent_params_raw is None or not forced_model:
++    return None
++
++  try:
++    with car.CarParams.from_bytes(persistent_params_raw) as persistent_params:
++      cache_matches_forced_model = (
++        persistent_params.carFingerprint == forced_model and
++        persistent_params.brand != "mock" and
++        len(persistent_params.carFw) > 0 and
++        VIN_RE.fullmatch(persistent_params.carVin) is not None
++      )
++  except Exception:
++    logger.exception("Failed to parse persistent CarParams for forced fingerprint cache")
++    return None
++
++  if not cache_matches_forced_model:
++    logger.warning("Ignoring persistent CarParams that do not match the forced fingerprint")
++    return None
++
++  logger.warning("Using persistent CarParams for forced fingerprint")
++  return persistent_params_raw
+diff --git a/selfdrive/car/card.py b/selfdrive/car/card.py
+index 9e43863f..4b276460 100644
+--- a/selfdrive/car/card.py
++++ b/selfdrive/car/card.py
+@@ -22,6 +22,7 @@ from opendbc.car.interfaces import CarInterfaceBase, RadarInterfaceBase
+ from opendbc.safety import ALTERNATIVE_EXPERIENCE
+ from openpilot.selfdrive.pandad import can_capnp_to_list, can_list_to_can_capnp
+ from openpilot.common.constants import CV
++from openpilot.selfdrive.car.car_params_cache import get_cached_params_raw
+ from openpilot.selfdrive.car.cruise import (
+   VCruiseHelper, IMPERIAL_INCREMENT, V_CRUISE_MAX, V_CRUISE_MIN,
+   is_speed_limit_confirmation_pending,
+@@ -116,7 +117,7 @@ class Car:
+       num_pandas = len(messaging.recv_one_retry(self.sm.sock['pandaStates']).pandaStates)
+ 
+       cached_params = None
+-      cached_params_raw = self.params.get("CarParamsCache")
++      cached_params_raw = get_cached_params_raw(self.params, cloudlog)
+       if cached_params_raw is not None:
+         with car.CarParams.from_bytes(cached_params_raw) as _cached_params:
+           cached_params = _cached_params
+diff --git a/selfdrive/car/tests/test_card_cache.py b/selfdrive/car/tests/test_card_cache.py
+new file mode 100644
+index 00000000..46dc7b62
+--- /dev/null
++++ b/selfdrive/car/tests/test_card_cache.py
+@@ -0,0 +1,124 @@
++from unittest.mock import patch
++
++from cereal import car
++
++from openpilot.selfdrive.car.car_params_cache import get_cached_params_raw
++
++
++BOLT_2017 = "CHEVROLET_BOLT_CC_2017"
++VALID_VIN = "1G1F76E02H4165708"
++
++
++class FakeLogger:
++  def warning(self, *args, **kwargs):
++    pass
++
++  def exception(self, *args, **kwargs):
++    pass
++
++
++LOGGER = FakeLogger()
++
++
++class FakeParams:
++  def __init__(self, values=None):
++    self.values = values or {}
++
++  def get(self, key, encoding=None):
++    value = self.values.get(key)
++    if value is not None and encoding is not None and isinstance(value, bytes):
++      return value.decode(encoding)
++    return value
++
++  def get_bool(self, key):
++    return bool(self.values.get(key, False))
++
++
++def build_car_params(*, fingerprint=BOLT_2017, brand="gm", vin=VALID_VIN, with_fw=True):
++  cp = car.CarParams.new_message()
++  cp.carFingerprint = fingerprint
++  cp.brand = brand
++  cp.carVin = vin
++  if with_fw:
++    fw = cp.init("carFw", 1)
++    fw[0].ecu = "eps"
++    fw[0].address = 0x730
++    fw[0].brand = brand
++    fw[0].fwVersion = b"verified"
++  return cp.to_bytes()
++
++
++def test_volatile_cache_always_wins():
++  volatile = b"volatile-cache"
++  params = FakeParams({
++    "CarParamsCache": volatile,
++    "CarParamsPersistent": b"not-capnp",
++    "ForceFingerprint": True,
++    "CarModel": "OTHER_CAR",
++  })
++  assert get_cached_params_raw(params, LOGGER) == volatile
++
++
++def test_persistent_cache_requires_forced_fingerprint():
++  persistent = build_car_params()
++  params = FakeParams({"CarParamsPersistent": persistent, "CarModel": BOLT_2017})
++  assert get_cached_params_raw(params, LOGGER) is None
++
++
++def test_matching_forced_fingerprint_reuses_persistent_cache():
++  persistent = build_car_params()
++  params = FakeParams({
++    "CarParamsPersistent": persistent,
++    "ForceFingerprint": True,
++    "CarModel": BOLT_2017.encode(),
++  })
++  assert get_cached_params_raw(params, LOGGER) == persistent
++
++
++def test_persistent_cache_avoids_live_diagnostic_queries():
++  from opendbc.car.car_helpers import fingerprint
++
++  persistent = build_car_params()
++  sent = []
++  obd_modes = []
++  with car.CarParams.from_bytes(persistent) as cached_params:
++    with patch("opendbc.car.car_helpers.Params", return_value=FakeParams()), \
++         patch("opendbc.car.car_helpers.match_fw_to_car", return_value=(True, {BOLT_2017})), \
++         patch("opendbc.car.car_helpers.can_fingerprint", return_value=(BOLT_2017, {0: {}, 1: {}, 2: {}})):
++      result = fingerprint(
++        lambda wait_for_one=False: [],
++        lambda msgs: sent.extend(msgs),
++        lambda enabled: obd_modes.append(enabled),
++        num_pandas=1,
++        cached_params=cached_params,
++      )
++
++  assert result[0] == BOLT_2017
++  assert sent == []
++  assert obd_modes == [False]
++
++
++def test_mismatched_forced_fingerprint_fails_closed():
++  persistent = build_car_params(fingerprint="OTHER_CAR")
++  params = FakeParams({
++    "CarParamsPersistent": persistent,
++    "ForceFingerprint": True,
++    "CarModel": BOLT_2017,
++  })
++  assert get_cached_params_raw(params, LOGGER) is None
++
++
++def test_incomplete_persistent_cache_fails_closed():
++  cases = [
++    build_car_params(brand="mock"),
++    build_car_params(vin="0" * 17),
++    build_car_params(with_fw=False),
++    b"not-capnp",
++  ]
++  for persistent in cases:
++    params = FakeParams({
++      "CarParamsPersistent": persistent,
++      "ForceFingerprint": True,
++      "CarModel": BOLT_2017,
++    })
++    assert get_cached_params_raw(params, LOGGER) is None

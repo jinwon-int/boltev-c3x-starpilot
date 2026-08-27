@@ -39,7 +39,7 @@
 
 ## 현재 안전 게이트
 
-소프트웨어와 설정 투영은 완료됐지만, 포맷 복구 후 `CarParams`, `CarParamsPersistent`, `FirmwareQueryDone`이 아직 생성되지 않았습니다. 따라서 **첫 ignition에서 Bolt 2017 fingerprint·Pedal·OP longitudinal·delay/PID·Panda/경고를 검증하기 전에는 주행/engage 완료로 판정하지 않습니다.**
+2026-08-27 첫 ignition에서 Bolt 2017 fingerprint·Pedal·OP longitudinal·delay/PID는 확인됐지만, 세 번의 독립 startup에서 Panda `interruptRateCan2`와 `commIssue`가 반복됐습니다. 현재 gate는 **FAIL / fail-closed**이며 원인 후보 패치가 검토 중입니다. [실주행 장애 기록](updates/2026-08-27-first-drive-can2-fault.md)을 확인하고, 별도 승인된 수정·정차 검증·저속 canary 전에는 engage하지 않습니다.
 
 ## 차량 기준
 
@@ -61,6 +61,7 @@
 - [`docs/api-reference.md`](docs/api-reference.md): Web/SSH/Tailscale 조회
 - [`docs/update-procedures.md`](docs/update-procedures.md): exact-pin 업데이트 절차
 - [`docs/troubleshooting.md`](docs/troubleshooting.md): 장애 진단
+- [`patches/`](patches/): exact-base 후보 패치와 검증 규칙
 - `updates/`: append-only 시점별 이력
 
 ## 변경 정책

@@ -1,0 +1,45 @@
+name: Patch validation
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  forced-fingerprint-cache:
+    name: Exact-base patch and cache guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tracker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Checkout exact StarPilot base
+        run: |
+          git clone --filter=blob:none --no-checkout --single-branch --branch StarPilot \
+            https://github.com/firestar5683/StarPilot.git /tmp/starpilot
+          git -C /tmp/starpilot sparse-checkout init --cone
+          git -C /tmp/starpilot sparse-checkout set cereal selfdrive/car
+          git -C /tmp/starpilot checkout 28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede
+
+      - name: Verify candidate digest and applicability
+        run: |
+          echo '517a9cb835d61f45b7efd1460c936454a14a6d733fb19ff89f88f270ec711e79  patches/28ec3ccb-forced-fingerprint-cache.patch' | sha256sum -c -
+          git -C /tmp/starpilot apply --check "$GITHUB_WORKSPACE/patches/28ec3ccb-forced-fingerprint-cache.patch"
+          git -C /tmp/starpilot apply "$GITHUB_WORKSPACE/patches/28ec3ccb-forced-fingerprint-cache.patch"
+          git -C /tmp/starpilot diff --check
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Run isolated cache guard tests
+        working-directory: /tmp/starpilot
+        run: |
+          python -m pip install --disable-pip-version-check pycapnp pytest
+          ln -s . openpilot
+          python -m pytest -q selfdrive/car/tests/test_card_cache.py -k 'not avoids_live_diagnostic_queries'
+
