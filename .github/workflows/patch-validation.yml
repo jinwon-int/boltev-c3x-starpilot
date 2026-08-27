@@ -21,8 +21,9 @@ jobs:
           git clone --filter=blob:none --no-checkout --single-branch --branch StarPilot \
             https://github.com/firestar5683/StarPilot.git /tmp/starpilot
           git -C /tmp/starpilot sparse-checkout init --cone
-          git -C /tmp/starpilot sparse-checkout set cereal selfdrive/car
+          git -C /tmp/starpilot sparse-checkout set cereal selfdrive/car opendbc_repo
           git -C /tmp/starpilot checkout 28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede
+          git -C /tmp/starpilot submodule update --init --depth 1 opendbc_repo
 
       - name: Verify candidate digest and applicability
         run: |
