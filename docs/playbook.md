@@ -31,23 +31,24 @@ ssh -i "$KEY" -o IdentitiesOnly=yes "$C3X" '
 
 - exact deployed SHA/tree와 immutable pin branch 일치
 - `comma`, SSH, Tailscale active
-- active-theme 6 paths 외 새 source drift 없음
+- approved forced-fingerprint overlay 3 files와 active-theme 6 entries 외 새 source drift 없음
 - disk/temperature/crash/tombstone에 blocking 신호 없음
 - secret-bearing Params와 route body는 출력하지 않음
 
-## 3. First ignition gate
+## 3. Parked-in-vehicle CAN gate
 
-포맷 복구 후 아직 hardware-derived Params가 absent다. 차량 전원을 켠 뒤 다음을 read-only로 확인한다.
+First ignition의 fingerprint·Pedal·OP longitudinal·delay/PID 확인은 완료됐지만 Panda `interruptRateCan2`가 반복됐습니다. reviewed forced-fingerprint cache patch 배포 후 차량 연결 검증은 아직 수행하지 않았습니다.
 
-1. `CarParams`·`CarParamsPersistent`·`FirmwareQueryDone` 생성
-2. fingerprint `CHEVROLET_BOLT_CC_2017`
-3. Pedal interceptor와 `GMPedalLongitudinal`
-4. `openpilotLongitudinalControl=true`, `networkLocation=fwdCamera`
-5. longitudinal actuator delay `0.6` 및 exact-source PID
-6. Panda/manager/UI/camera health, blocking alert 없음
-7. `IsOffroad=1`, `IsOnroad=0`, `IsEngaged=0`에서 검증 마감
+owner가 차량을 P단·안전 장소에 두고 별도 승인한 window에서 다음을 read-only로 확인합니다.
 
-이후에만 owner-driven 저속 first-drive를 별도 승인으로 수행한다. 즉시 수동 제동할 준비를 유지하며 원격에서 차량 engage/조향/가감속을 시도하지 않는다.
+1. `CarParamsPersistent`가 forced `CHEVROLET_BOLT_CC_2017`과 일치하며 cache guard가 선택됨
+2. Pedal interceptor와 `GMPedalLongitudinal`
+3. `openpilotLongitudinalControl=true`, `networkLocation=fwdCamera`, delay `0.6`와 expected PID
+4. Panda `faults`/`faultStatus`, CAN bus RX/error-passive/error counters
+5. manager/UI/camera health와 blocking alert
+6. P단·0 km/h·`controlsAllowed=false`; 검증 종료 뒤 `IsOffroad=1`, `IsOnroad=0`, `IsEngaged=0`
+
+fault가 재현되면 반복 reboot나 engage를 하지 않고 route/log evidence를 보존합니다. 이 gate를 통과한 뒤에도 owner-driven 저속 canary는 별도 승인이 필요합니다. 원격에서 차량 engage/조향/가감속을 시도하지 않습니다.
 
 ## 4. Settings audit
 

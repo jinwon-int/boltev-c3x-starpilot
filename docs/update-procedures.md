@@ -1,12 +1,12 @@
 # C3X Exact-Pin Update Procedure
 
 > **대상:** `tizi-the-galaxy`, StarPilot, Bolt EV 2017 non-ACC + Comma Pedal<br>
-> **현행 baseline:** `28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede`, AGNOS 19.6.2<br>
+> **현행 baseline:** `28ec3ccb80ff46fc88adbdf48e7b4a40c6afeede` + reviewed cache overlay, AGNOS 19.6.2<br>
 > **경계:** update, Params write, firmware, restart, reboot는 각각 fresh approval 범위 안에서만 실행
 
 ## Current architecture
 
-Active checkout `/data/openpilot`은 branch `bolt-starpilot-28ec3ccb`에서 self-contained local bare pin `file:///data/starpilot-pins/28ec3ccb.git`을 origin으로 사용합니다. GitHub upstream은 후보 조사용입니다.
+Active checkout `/data/openpilot`은 branch `bolt-starpilot-28ec3ccb`에서 self-contained local bare pin `file:///data/starpilot-pins/28ec3ccb.git`을 origin으로 사용합니다. GitHub upstream은 후보 조사용입니다. 현행 3-file forced-fingerprint cache overlay는 base HEAD를 바꾸지 않으므로 patch digest와 result file hashes를 함께 검증해야 합니다.
 
 과거 detached `d931d300` / `UpdaterTargetBranch=HEAD` blocker와 moving tarball 방식은 [`../updates/2026-08-24-audit.md`](../updates/2026-08-24-audit.md)의 history입니다. 현행 절차로 재사용하지 않습니다.
 
@@ -22,6 +22,7 @@ ssh -i "$KEY" -o IdentitiesOnly=yes "$C3X" '
   git branch --show-current
   git remote -v
   git status --short
+  sha256sum selfdrive/car/car_params_cache.py selfdrive/car/card.py selfdrive/car/tests/test_card_cache.py
   cat /VERSION
   systemctl is-active comma.service
   df -h /data
@@ -32,7 +33,7 @@ ssh -i "$KEY" -o IdentitiesOnly=yes "$C3X" '
 
 ## 2. Candidate gate
 
-1. moving branch가 아닌 exact SHA와 tree를 고정
+1. moving branch가 아닌 exact SHA와 tree를 고정하고, 현 overlay의 이식·제거 방침을 명시
 2. GM/Bolt/Pedal/longitudinal/Panda safety 전체 diff 요약
 3. exact candidate focused tests와 알려진 결함 확인
 4. Pedal/AGNOS 요구 버전과 현재 hardware 호환 확인

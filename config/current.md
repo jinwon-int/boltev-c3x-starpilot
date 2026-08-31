@@ -1,8 +1,8 @@
 # Current C3X Configuration Snapshot
 
-> **live-check:** 2026-08-25 KST, Daegyo → Tailscale SSH<br>
+> **live-check:** 2026-08-31 KST, Daegyo → Tailscale SSH<br>
 > **대상:** `tizi-the-galaxy` / Comma 3X `comma-dbba2a27`<br>
-> **경계:** 이 문서는 read-only snapshot입니다. first ignition 실증 전 차량 준비 완료를 주장하지 않습니다.
+> **경계:** 이 문서는 read-only snapshot입니다. parked CAN gate 전 차량 준비 완료를 주장하지 않습니다.
 
 ## 소프트웨어
 
@@ -15,7 +15,10 @@
 | Origin | `file:///data/starpilot-pins/28ec3ccb.git` (immutable local pin) |
 | Upstream | GitHub `firestar5683/StarPilot` (조회용) |
 | AGNOS | `19.6.2` |
-| Overlay | exact candidate 활성화 완료 |
+| Overlay | forced-fingerprint cache patch 활성화 완료 |
+| Overlay result hashes | `car_params_cache.py=866fc934…`, `card.py=5b9d386e…`, `test_card_cache.py=98a392f8…` |
+| Driving model | `rdf43` / Regret Driven Framework V4 / `v15` |
+| Stored inactive models | `pop223` / Pop v2, `sc23` / SC Driving |
 
 `starpilot/assets/active_theme/` 아래 5개 tracked directory 수정과 `steering_wheel/` untracked directory는 runtime theme materialization입니다. broad reset/clean 대상으로 취급하지 않습니다.
 
@@ -30,8 +33,8 @@
 | SSH | port 22, user `comma`, Daegyo C3X key |
 | Web UI | `http://100.90.4.121:8082` |
 | Services | `comma.service`, `ssh.socket`, `tailscaled.service` active |
-| `/data` | 약 2.9 GiB / 89 GiB, 4% 사용 |
-| routes | 복구 후 1개 directory 관측 |
+| `/data` | 약 16 GiB / 89 GiB, 19% 사용 |
+| routes | `/data/media/0/realdata` 아래 86 directories 관측 |
 
 SSH ED25519 host-key fingerprint(live): `SHA256:kxVkcmAn96V4ezKlV2mefv3TQbqHnREFmThp2zvo4ls`.
 
@@ -59,23 +62,18 @@ SSH ED25519 host-key fingerprint(live): `SHA256:kxVkcmAn96V4ezKlV2mefv3TQbqHnREF
 
 복구 당시 owner-only backup: `/data/boltev-recovery/28ec3ccb-firestar-settings-20260824T175925Z`.
 
-## First ignition gate — pending
+## First ignition result and current parked gate
 
-2026-08-25 live readback에서 다음 키는 모두 absent였습니다.
-
-- `CarParams`
-- `CarParamsPersistent`
-- `CarParamsPrevRoute`
-- `FirmwareQueryDone`
-- `IsOffroad` / `IsOnroad` / `IsEngaged`
-
-차량 전원을 켠 뒤 아래를 확인해야 정합성이 완성됩니다.
+2026-08-27 first ignition에서 다음을 확인했습니다.
 
 1. runtime fingerprint `CHEVROLET_BOLT_CC_2017`
 2. Comma Pedal 인식과 `GMPedalLongitudinal`
 3. `openpilotLongitudinalControl=true`, `networkLocation=fwdCamera`
-4. exact source 기대값인 longitudinal actuator delay `0.6`와 새 PID
-5. Panda/manager/UI/camera health 및 blocking alert 없음
-6. offroad 확인 후 owner-driven 저속 first-drive, 즉시 수동 제동 준비
+4. longitudinal actuator delay `0.6`와 exact-source expected PID
+5. manager/camera/logging/storage/thermal 정상
 
-이 gate 전에는 **소프트웨어 설치 완료**와 **실차 검증 완료**를 구분합니다.
+동시에 세 번의 startup에서 Panda `interruptRateCan2`, logical bus 1 RX 0/error-passive, `commIssue`가 반복돼 gate는 fail closed가 됐습니다. 검토된 forced-fingerprint cache patch는 2026-08-27 off-vehicle 배포·재부팅 후 reviewed file hash와 일치했고 cache guard 6개 및 standalone Panda no-fault를 통과했습니다.
+
+2026-08-31 off-vehicle readback은 `IsOffroad=1`, `IsOnroad=0`, `IsEngaged=0`, `CarParamsPersistent` present(1,808 bytes)입니다. manager startup에서 clear되는 `CarParams`와 `FirmwareQueryDone`은 현재 absent이므로, 이 두 transient key만으로 first ignition 수행 여부를 되돌려 판정하지 않습니다.
+
+남은 gate는 차량 P단에서 patch 적용 후 Panda fault·bus health를 다시 확인하는 **parked-in-vehicle CAN validation**입니다. 이를 통과하고 별도 승인을 받기 전에는 engage 또는 저속 canary를 수행하지 않습니다.
