@@ -66,11 +66,13 @@ ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes comma@100.90.4.121 '
 
 로그는 bounded하게 읽고 token/DongleId/route body를 기록하지 않는다. 서비스 restart는 자동 복구 절차가 아니라 별도 승인 mutation이다.
 
-## 5. First ignition Params absent
+## 5. Runtime Params lifecycle
 
-복구 직후 `CarParams`, `CarParamsPersistent`, `FirmwareQueryDone`가 absent인 것은 첫 ignition 전 상태일 수 있다. 파일을 임의 생성·복사하지 않는다. 차량 전원을 켜고 manager가 hardware query를 완료하도록 한 뒤 fingerprint/Pedal/longitudinal/Panda를 확인한다.
+복구 직후 `CarParams`, `CarParamsPersistent`, `FirmwareQueryDone`가 모두 absent하면 first ignition 전 상태일 수 있습니다. 파일을 임의 생성·복사하지 않습니다. 차량 전원을 켜고 manager가 hardware query를 완료하도록 한 뒤 fingerprint/Pedal/longitudinal/Panda를 확인합니다.
 
-잘못된 fingerprint, Pedal 미인식, blocking alert가 있으면 **주행/engage 금지**하고 증거만 수집한다.
+First ignition 이후에도 manager startup에서 clear되는 `CarParams`와 `FirmwareQueryDone`은 off-vehicle 상태에서 다시 absent일 수 있습니다. `CarParamsPersistent`와 append-only ignition evidence를 함께 확인하며 transient key absent만으로 검증 이력을 되돌리지 않습니다.
+
+잘못된 fingerprint, Pedal 미인식, blocking alert가 있으면 **주행/engage 금지**하고 증거만 수집합니다.
 
 ## 6. Panda `interruptRateCan2` / empty OBSTACLE bus
 
@@ -83,9 +85,11 @@ ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes comma@100.90.4.121 '
 
 C3X 화면·camera·manager가 정상처럼 보여도 Panda health 원문이 정상이라는 뜻은 아닙니다. 즉시 engage를 중단하고 P단·0km/h·`controlsAllowed=false`를 확인합니다. reboot나 차량 전원 사이클로 동일 fault가 재현되면 반복 재부팅하지 않습니다.
 
-물리 배선 불량으로 바로 확정하지 않습니다. 현행 Bolt 설정은 `radarUnavailable=true`이고 bus 1은 정상 주행 traffic이 없는 topology일 수 있습니다. startup diagnostics/software, Panda transceiver, harness를 순서대로 분리합니다. 상세 근거와 미배포 후보 패치는 [2026-08-27 장애 기록](../updates/2026-08-27-first-drive-can2-fault.md)을 참조합니다.
+물리 배선 불량으로 바로 확정하지 않습니다. 현행 Bolt 설정은 `radarUnavailable=true`이고 bus 1은 정상 주행 traffic이 없는 topology일 수 있습니다. startup diagnostics/software, Panda transceiver, harness를 순서대로 분리합니다. 최초 근거는 [2026-08-27 장애 기록](../updates/2026-08-27-first-drive-can2-fault.md)을 참조합니다.
 
-후보 패치를 live checkout에 직접 `git apply`하지 않습니다. [`patches/README.md`](../patches/README.md)의 exact-base·CI·새 pin·approval gate를 따릅니다.
+Reviewed forced-fingerprint cache patch는 2026-08-27 off-vehicle 배포·재부팅 검증을 통과했고 2026-08-31 result file hashes가 검토본과 일치했습니다. 그러나 차량에 연결한 CAN 재검증은 미완료입니다. P단·0 km/h·`controlsAllowed=false`에서 별도 승인된 parked validation 전에는 fault 해소를 주장하거나 engage하지 않습니다. patch를 재적용·교체하지 말고 [`patches/README.md`](../patches/README.md)의 exact-base·digest·result-hash gate를 따릅니다.
+
+공식 [StarPilot FAQ](https://wiki.firestar.link/faq/#how-do-i-fix-the-can-bus-disconnected-error)는 generic CAN disconnect에 harness/OBD-C/Pedal 연결 재장착을 안내합니다. 이는 현재 software/topology 가설을 배제하는 근거가 아니며, 물리 작업도 owner가 차량을 끄고 승인한 뒤 수행합니다. fault가 재현되면 route/log를 보존하고 [ticket workflow](https://wiki.firestar.link/ticketsystem/)로 escalation할 수 있지만 외부 업로드·공개·Dom branch 전환은 각각 별도 승인 대상입니다.
 
 ## 7. Git/updater failure
 
